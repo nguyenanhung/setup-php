@@ -195,6 +195,19 @@ Function Edit-ComposerConfig() {
   }
 }
 
+# Function to extract tool version.
+Function Get-ToolVersion() {
+  Param (
+      [Parameter(Position = 0, Mandatory = $true)]
+      $tool,
+      [Parameter(Position = 1, Mandatory = $true)]
+      $param
+  )
+  if($tool -eq 'composer') { return $param }
+  $version_regex = "[0-9]+((\.{1}[0-9]+)+)(\.{0})(-[a-z0-9]+){0,1}"
+  return . $tool $param.split(' ') 2> $null | ForEach-Object { $_ -replace "composer $version_regex", '' } | Select-String -Pattern $version_regex | select-object -First 1 | ForEach-Object { $_.matches.Value }
+}
+
 # Function to add tools.
 Function Add-Tool() {
   Param (
@@ -203,9 +216,10 @@ Function Add-Tool() {
     $url,
     [Parameter(Position = 1, Mandatory = $true)]
     [ValidateNotNull()]
-    [ValidateLength(1, [int]::MaxValue)]
-    [string]
-    $tool
+    $tool,
+    [Parameter(Position = 2, Mandatory = $true)]
+    [ValidateNotNull()]
+    $ver_param
   )
   if (Test-Path $bin_dir\$tool) {
     Remove-Item $bin_dir\$tool
@@ -239,7 +253,8 @@ Function Add-Tool() {
     Copy-Item $bin_dir\wp-cli.bat -Destination $bin_dir\wp.bat
   }
   if (((Get-ChildItem -Path $bin_dir/* | Where-Object Name -Match "^$tool(.exe|.phar)*$").Count -gt 0)) {
-    Add-Log $tick $tool "Added"
+    $tool_version = Get-ToolVersion $tool $ver_param
+    Add-Log $tick $tool "Added $tool $tool_version"
   } else {
     Add-Log $cross $tool "Could not add $tool"
   }
@@ -266,7 +281,8 @@ Function Add-Composertool() {
   )
   composer -q global require $prefix$release 2>&1 | out-null
   if($?) {
-    Add-Log $tick $tool "Added"
+    $tool_version = Get-ToolVersion "composer.bat" "global show $prefix$release"
+    Add-Log $tick $tool "Added $tool $tool_version"
   } else {
     Add-Log $cross $tool "Could not setup $tool"
   }

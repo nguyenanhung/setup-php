@@ -158,10 +158,23 @@ configure_composer() {
   fi
 }
 
+# Function to extract tool version.
+get_tool_version() {
+  tool=$1
+  param=$2
+  version_regex="[0-9]+((\.{1}[0-9]+)+)(\.{0})(-[a-z0-9]+){0,1}"
+  if [ "$tool" = "composer" ]; then
+    echo $param
+  else
+    $tool "${param[@]}" 2>/dev/null | sed -E "s/composer(|.)$version_regex//ig" | grep -Eo "$version_regex" | head -n 1
+  fi
+}
+
 # Function to setup a remote tool.
 add_tool() {
   url=$1
   tool=$2
+  ver_param=$3
   tool_path="$tool_path_dir/$tool"
   if [ ! -e "$tool_path" ]; then
     rm -rf "$tool_path"
@@ -191,7 +204,8 @@ add_tool() {
     elif [ "$tool" = "wp-cli" ]; then
       sudo cp -p "$tool_path" "$tool_path_dir"/wp
     fi
-    add_log "$tick" "$tool" "Added"
+    tool_version=$(get_tool_version "$tool" "$ver_param")
+    add_log "$tick" "$tool" "Added $tool $tool_version"
   else
     add_log "$cross" "$tool" "Could not setup $tool"
   fi
@@ -202,9 +216,18 @@ add_composertool() {
   tool=$1
   release=$2
   prefix=$3
+  version_param=( composer global show "$prefix$release" )
   (
-    composer global require "$prefix$release" >/dev/null 2>&1 && add_log "$tick" "$tool" "Added"
+    composer global require "$prefix$release" >/dev/null 2>&1 &&
+    tool_version=$(get_tool_version '' "${version_param[@]}") &&
+    add_log "$tick" "$tool" "Added $tool $tool_version"
   ) || add_log "$cross" "$tool" "Could not setup $tool"
+}
+
+# Function to handle request to add phpize and php-config.
+add_devtools() {
+  tool=$1
+  add_log "$tick" "$tool" "Added $tool $semver"
 }
 
 # Function to configure PECL
@@ -217,7 +240,8 @@ configure_pecl() {
 
 # Function to handle request to add PECL.
 add_pecl() {
-  add_log "$tick" "PECL" "Added"
+  pecl_version=$(get_tool_version "pecl" "version")
+  add_log "$tick" "PECL" "Found PECL $pecl_version"
 }
 
 # Function to setup PHP 5.6 and newer.
